@@ -57,6 +57,10 @@ main{padding:4px 16px calc(80px + env(safe-area-inset-bottom))}
 .guardar[disabled]{background:var(--sup2);color:var(--mudo)}
 .mini{background:var(--sup2);border:1px solid var(--linea);color:var(--texto);border-radius:12px;padding:9px 14px;font-size:14px;min-height:44px}
 .mini:active{background:#24414F}
+.pegar{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:transparent;border:1px dashed var(--acc2);
+  color:var(--acc2);border-radius:14px;padding:10px 14px;font-size:15px;font-weight:600;min-height:48px;margin-bottom:10px}
+.pegar:active{background:rgba(63,200,240,.08)}
+.pegar svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .borrar{background:none;border:1px solid #6B2C3C;color:var(--pr);border-radius:12px;padding:9px 14px;font-size:14px;min-height:44px}
 .enlace{background:none;border:0;color:var(--acc2);font-size:13px;padding:6px 4px;min-height:32px}
 
@@ -238,6 +242,7 @@ function vistaRegistrar(){
   $('#top').onclick=null;
   $('#vista').innerHTML=`
     <section class="form">
+      ${form.editando?'':`<button class="pegar" id="btnPegar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg>Pegar compra de Wallet</button>`}
       <label class="monto"><span>$</span><input id="monto" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Monto en pesos"
         value="${form.monto?form.monto.toLocaleString('es-CO'):''}"></label>
       <div class="cats" role="group" aria-label="Categoría">${CATS.map(c=>`
@@ -273,12 +278,45 @@ function vistaRegistrar(){
       actualizarBoton();return;
     }
     if(b.id==='btnGuardar')return guardarMov();
+    if(b.id==='btnPegar')return pegarCompra();
     if(b.id==='btnCancelar'){limpiarForm();vistaRegistrar();return;}
     if(b.id==='btnBorrar')return borrarMov(form.editando);
     if(b.dataset.id){editar(b.dataset.id);vistaRegistrar();window.scrollTo(0,0);}
   };
 }
 function actualizarBoton(){const g=$('#btnGuardar');if(g)g.disabled=!(form.monto>0&&form.cat);}
+
+/* ============ compra desde Wallet (Atajo de iPhone) ============
+   El Atajo copia al portapapeles "GASTO|<monto>|<comercio>". El monto puede venir como
+   "45000", "$45.000", "COP 45.000,00" o "45000.00": se quitan los centavos y se dejan los dígitos. */
+function montoDeTexto(t){
+  let s=String(t).replace(/[^\d.,]/g,'');
+  s=s.replace(/[.,]\d{1,2}$/,'');
+  const d=s.replace(/\D/g,'').slice(0,12);
+  return d?parseInt(d,10):0;
+}
+function leerCompra(txt){
+  const t=String(txt||'').trim();
+  if(!t)return null;
+  const partes=t.split('|').map(x=>x.trim());
+  if(/^gasto$/i.test(partes[0]))partes.shift();
+  const i=partes.findIndex(p=>/\d/.test(p));
+  if(i<0)return null;
+  const monto=montoDeTexto(partes[i]);
+  if(!(monto>0))return null;
+  const nota=partes.filter((p,j)=>j!==i&&p).join(' · ').slice(0,60);
+  return{monto,nota};
+}
+async function pegarCompra(){
+  let txt='';
+  try{txt=await navigator.clipboard.readText();}
+  catch(e){avisar('No se pudo leer el portapapeles');return;}
+  const c=leerCompra(txt);
+  if(!c){avisar('No hay una compra copiada');return;}
+  form={monto:c.monto,cat:null,nota:c.nota,fecha:hoy(),editando:null};
+  vistaRegistrar();
+  avisar(fmt(c.monto)+(c.nota?' en '+c.nota:'')+' · elige la categoría');
+}
 function limpiarForm(){form={monto:0,cat:null,nota:'',fecha:form.fecha,editando:null};}
 function editar(id){
   const m=movs.find(x=>x.id===id);if(!m)return;
